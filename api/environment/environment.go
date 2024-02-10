@@ -7,10 +7,15 @@ import (
 	"strings"
 )
 
+var allowMigration bool
 var workEnv string
 
 func IsTestEnvironment() bool {
 	return workEnv == TestEnv
+}
+
+func AllowMigrations() bool {
+	return allowMigration
 }
 
 func ParseArgs() {
@@ -25,6 +30,10 @@ func ParseArgs() {
 				workEnv = TestEnv
 			} else {
 				panic(fmt.Sprintf("invalid arg: %s", arg_))
+			}
+		case "-migrate":
+			if strings.ToLower(arg[1]) == "true" {
+				allowMigration = true
 			}
 		default:
 			log.Printf("Unexpected arg: %s", arg_)

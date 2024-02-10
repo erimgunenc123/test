@@ -10,6 +10,7 @@ type config struct {
 type appConfig struct {
 	Port    string        `yaml:"port"`
 	Logging loggingConfig `yaml:"logging"`
+	Secret  string        `yaml:"secret"`
 }
 
 type loggingConfig struct {
@@ -25,5 +26,5 @@ type dbConfig struct {
 }
 
 func (db *dbConfig) GetConnectionStr() string {
-	return fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", db.Username, db.Password, db.Host, db.Port, db.DatabaseName)
+	return fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8&parseTime=True", db.Username, db.Password, db.Host, db.Port, db.DatabaseName)
 }

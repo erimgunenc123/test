@@ -1,17 +1,32 @@
 package api
 
 import (
-	"genericAPI/internal/endpoints/http_endpoints"
+	"genericAPI/api/environment"
+	"genericAPI/api/middlewares"
+	"genericAPI/internal/endpoints/http_endpoints/login"
+	"genericAPI/internal/endpoints/http_endpoints/register"
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"net/http"
 )
 
 func InitRouter(app *gin.Engine) {
 	app.Use(gin.Logger())
+	app.Use(setCORS())
 	app.NoRoute(noRoute)
 	app.NoMethod(noMethod)
-	indexRoute := app.GET("/", http_endpoints.TestEndpoint)
-	indexRoute.Use()
+	addEndpointRouters(app)
+}
+
+func addEndpointRouters(app *gin.Engine) {
+	// no need to handle logout
+	// frontend will remove the stored jwt on logout and redirect to index page
+	app.POST("/login", login.LoginEndpoint)
+	app.POST("/register", register.RegisterEndpoint)
+
+	// ws
+	wsGroup := app.Group("/ws")
+	wsGroup.Use(middlewares.WebsocketMiddleware())
 }
 
 func noRoute(c *gin.Context) {
@@ -20,4 +35,13 @@ func noRoute(c *gin.Context) {
 
 func noMethod(c *gin.Context) {
 	c.JSON(http.StatusMethodNotAllowed, gin.H{"code": "METHOD_NOT_ALLOWED", "message": "Method not allowed!"})
+}
+
+// todo configure later
+func setCORS() gin.HandlerFunc {
+	corsConf := cors.DefaultConfig()
+	if environment.IsTestEnvironment() {
+		corsConf.AllowAllOrigins = true
+	}
+	return cors.New(corsConf)
 }

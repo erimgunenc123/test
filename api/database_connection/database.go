@@ -1,14 +1,8 @@
-package api
+package database_connection
 
 import (
 	"genericAPI/api/api_config"
-	"genericAPI/api/environment"
-	"genericAPI/internal/models/auth_token"
-	"genericAPI/internal/models/permission"
-	"genericAPI/internal/models/permission_group"
-	"genericAPI/internal/models/permission_group_permissions"
-	"genericAPI/internal/models/token_type"
-	"genericAPI/internal/models/user"
+	"genericAPI/api/database_logger"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"log"
@@ -21,8 +15,9 @@ func getNow() time.Time {
 	return time.Now().UTC()
 }
 
-func InitDB() {
+func InitDB(logger *database_logger.DBLogger) {
 	dbConf := gorm.Config{
+		Logger:                   logger,
 		SkipDefaultTransaction:   true,
 		NowFunc:                  getNow,
 		PrepareStmt:              false,
@@ -40,17 +35,4 @@ func InitDB() {
 	}
 
 	log.Print("Successfully initialized database connection")
-	if environment.IsTestEnvironment() {
-		err := DB.AutoMigrate(
-			&user.User{},
-			&token_type.TokenType{},
-			&auth_token.AuthToken{},
-			&permission.Permission{},
-			&permission_group.PermissionGroup{},
-			&permission_group_permissions.PermissionGroupPermission{},
-		)
-		if err != nil {
-			panic("Failed migrating. Reason: " + err.Error())
-		}
-	}
 }

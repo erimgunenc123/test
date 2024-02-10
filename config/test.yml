@@ -5,6 +5,7 @@ db:
   password: 1234
   database: genericapi
 app:
-  port: 3000
+  port: 3002
   logging:
     log_filepath: /home/ubuntu/logs/
+  secret: qlB0AAXIfyq1gspborM1Ew

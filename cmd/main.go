@@ -3,7 +3,10 @@ package main
 import (
 	"genericAPI/api"
 	"genericAPI/api/api_config"
+	"genericAPI/api/database_connection"
+	"genericAPI/api/database_logger"
 	"genericAPI/api/environment"
+	"genericAPI/internal/dbops"
 	"github.com/gin-gonic/gin"
 	"log"
 )
@@ -11,9 +14,11 @@ import (
 func main() {
 	environment.ParseArgs()
 	api_config.InitConfig()
-	api.InitDB()
-	api.ConfigureGinLogger()
+
+	database_connection.InitDB(database_logger.InitDbLogger())
 	app := gin.Default()
+	api.ConfigureGin(app)
 	api.InitRouter(app)
+	dbops.Migrate() // disabled on prod env
 	log.Fatal(app.Run(":" + api_config.Config.App.Port))
 }
