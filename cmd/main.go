@@ -6,6 +6,7 @@ import (
 	"genericAPI/api/database_connection"
 	"genericAPI/api/database_logger"
 	"genericAPI/api/environment"
+	"genericAPI/binanceconnector/connection_manager"
 	"genericAPI/internal/dbops"
 	"github.com/gin-gonic/gin"
 	"log"
@@ -20,5 +21,6 @@ func main() {
 	api.ConfigureGin(app)
 	api.InitRouter(app)
 	dbops.Migrate() // disabled on prod env
+	connection_manager.InitBinanceConnectionManager()
 	log.Fatal(app.Run(":" + api_config.Config.App.Port))
 }

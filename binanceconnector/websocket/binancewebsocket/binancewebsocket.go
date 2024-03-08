@@ -4,11 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"genericAPI/binanceconnector/websocket"
+	"genericAPI/binanceconnector/dto"
 	"genericAPI/internal/customErrors"
 	"genericAPI/internal/websocketclient"
 	"log"
-	"log/slog"
 	"strconv"
 	"sync"
 )
@@ -16,33 +15,37 @@ import (
 // BinanceSocket Use binance socket to listen specific market streams
 // How it works: Creates a websocket client to the base url, sends a subscription request for the demanded market stream
 // endpoint, creates a response channel for that subscription, listens to the socket and writes the responses to
-// their corresponding response channels based on endpoint identifiers
+// their corresponding response channels based on provided identifiers
 type BinanceSocket struct {
 	client                     *websocketclient.WebsocketClient
-	streamResponseChannels     map[int]chan []byte // identifier -> response channel
+	streamResponseChannels     map[uint64]chan []byte // identifier -> response channel
 	streamResponseChannelsLock sync.Mutex
 }
 
-func NewBinanceWebsocket(start bool, clientName string) *BinanceSocket {
-	socket := BinanceSocket{
+func NewBinanceWebsocket(start bool, clientName string) (socket *BinanceSocket, err error) {
+	socket = &BinanceSocket{
 		client:                     websocketclient.NewWebsocketClient(clientName, BaseWsUrl),
 		streamResponseChannelsLock: sync.Mutex{},
 	}
 	if start {
-		socket.Start()
+		err = socket.Start()
+		if err != nil {
+			return nil, err
+		}
 	}
-	return &socket
+	return socket, err
 }
 
-func (bs *BinanceSocket) Start() {
+func (bs *BinanceSocket) Start() error {
 	err := bs.client.Connect()
 	if err != nil {
-		slog.Error("failed starting binance websocket", err)
+		return err
 	}
 	go bs.listen()
+	return nil
 }
 
-func (bs *BinanceSocket) GetResponseChannel(identifier int) chan []byte {
+func (bs *BinanceSocket) GetResponseChannel(identifier uint64) chan []byte {
 	bs.streamResponseChannelsLock.Lock()
 	defer bs.streamResponseChannelsLock.Unlock()
 	if respChan, ok := bs.streamResponseChannels[identifier]; ok {
@@ -51,11 +54,11 @@ func (bs *BinanceSocket) GetResponseChannel(identifier int) chan []byte {
 	return nil
 }
 
-func (bs *BinanceSocket) Subscribe(symbol string, endpoint string, identifier int) (err error) {
+func (bs *BinanceSocket) Subscribe(symbol dto.BinanceSymbol, stream dto.BinanceStream, identifier uint64) (err error) {
 	requestBytes, _ := json.Marshal(
-		websocket.SymbolListenRequest{
+		dto.SymbolListenRequest{
 			Method: MethodSubscribe,
-			Params: []string{fmt.Sprintf("%s@%s", symbol, endpoint)},
+			Params: []string{fmt.Sprintf("%s@%s", symbol, stream)},
 			Id:     identifier,
 		})
 
@@ -79,7 +82,7 @@ func (bs *BinanceSocket) Subscribe(symbol string, endpoint string, identifier in
 	}
 	if res, ok := response["result"]; ok {
 		if res == nil {
-			log.Printf("Listen request successful. Symbol (%s) Endpoint(%s)", symbol, endpoint)
+			log.Printf("Listen request successful. Symbol (%s) Stream(%s)", symbol, stream)
 			return
 		}
 	}
@@ -91,7 +94,7 @@ func (bs *BinanceSocket) listen() {
 	for {
 		msg := bs.client.ReadMessage() // need to handle error cases, maybe restart the service subscription
 		if msg != nil {
-			idIdx := bytes.Index(msg, []byte(`"id"`))
+			idIdx := bytes.Index(msg, []byte(`"id"`)) // todo start from the end
 			if idIdx == -1 {
 				log.Printf("ID field not found in message: %s", msg)
 				continue
@@ -114,7 +117,7 @@ func (bs *BinanceSocket) listen() {
 				continue
 			}
 			bs.streamResponseChannelsLock.Lock()
-			if respChan, ok := bs.streamResponseChannels[chanIdentifier]; ok {
+			if respChan, ok := bs.streamResponseChannels[uint64(chanIdentifier)]; ok {
 				respChan <- msg
 			} else {
 				log.Printf("Identifier channel %d not found. Unsubscribing...", chanIdentifier)
@@ -124,7 +127,8 @@ func (bs *BinanceSocket) listen() {
 		}
 	}
 }
-func (bs *BinanceSocket) addResponseChan(identifier int) chan []byte {
+
+func (bs *BinanceSocket) addResponseChan(identifier uint64) chan []byte {
 	bs.streamResponseChannelsLock.Lock()
 	defer bs.streamResponseChannelsLock.Unlock()
 	respChan := make(chan []byte, 1000) // faster than unbuffered
@@ -132,7 +136,7 @@ func (bs *BinanceSocket) addResponseChan(identifier int) chan []byte {
 	return respChan
 }
 
-func (bs *BinanceSocket) removeResponseChan(identifier int) {
+func (bs *BinanceSocket) removeResponseChan(identifier uint64) {
 	bs.streamResponseChannelsLock.Lock()
 	defer bs.streamResponseChannelsLock.Unlock()
 	delete(bs.streamResponseChannels, identifier)

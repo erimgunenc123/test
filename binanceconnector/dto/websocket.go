@@ -1,9 +1,16 @@
-package websocket
+package dto
+
+type BinanceWsMethod string
+
+const (
+	MethodSubscribe   BinanceWsMethod = "SUBSCRIBE"
+	MethodUnsubscribe BinanceWsMethod = "UNSUBSCRIBE"
+)
 
 type SymbolListenRequest struct {
 	Method string   `json:"method"`
 	Params []string `json:"params"`
-	Id     int      `json:"id"`
+	Id     uint64   `json:"id"`
 }
 
 type SymbolListenResponse struct {

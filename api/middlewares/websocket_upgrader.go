@@ -7,7 +7,7 @@ import (
 	"net/http"
 )
 
-func WebsocketMiddleware() gin.HandlerFunc {
+func WebsocketUpgradeMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		wsUpgrader := websocket.Upgrader{
 			ReadBufferSize:  1024,

@@ -7,19 +7,17 @@ import (
 )
 
 type WebsocketClient struct {
-	clientName  string
-	conn        *websocket.Conn
-	mutex       *sync.Mutex
-	url         string
-	dataOutChan chan []byte
+	clientName string
+	conn       *websocket.Conn
+	mutex      sync.Mutex
+	url        string
 }
 
 func NewWebsocketClient(clientName string, url string) *WebsocketClient {
 	return &WebsocketClient{
-		clientName:  clientName,
-		mutex:       &sync.Mutex{},
-		url:         url,
-		dataOutChan: make(chan []byte),
+		clientName: clientName,
+		mutex:      sync.Mutex{},
+		url:        url,
 	}
 
 }
@@ -43,18 +41,6 @@ func (w *WebsocketClient) GetConnection() *websocket.Conn {
 
 func (w *WebsocketClient) SendPong() {
 	return
-}
-
-func (w *WebsocketClient) Listen() {
-	for {
-		w.mutex.Lock()
-		msg := w.ReadMessage()
-		w.mutex.Unlock()
-		if msg == nil {
-			continue
-		}
-		w.dataOutChan <- msg
-	}
 }
 
 func (w *WebsocketClient) SendPing() {
