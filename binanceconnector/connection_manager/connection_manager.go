@@ -1,6 +1,10 @@
 package connection_manager
 
 import (
+	"fmt"
+	"genericAPI/binanceconnector/dto"
+	"genericAPI/binanceconnector/websocket/binancewebsocket"
+	"github.com/google/uuid"
 	"sync"
 	"time"
 )
@@ -14,7 +18,7 @@ import (
 // There is a limit of 300 connections per attempt every 5 minutes per IP.
 
 type binanceConnectionManager struct {
-	connections        map[uint64]*BinanceConnection // userId -> conn
+	connections        map[string]*binancewebsocket.BinanceSocket // stream name as key. example:  btcusdt@depth -> conn
 	connectionsLock    sync.Mutex
 	connectionAttempts chan time.Time
 }
@@ -23,27 +27,32 @@ var BinanceConnectionManager *binanceConnectionManager
 
 func InitBinanceConnectionManager() {
 	BinanceConnectionManager = &binanceConnectionManager{
-		connections:        map[uint64]*BinanceConnection{},
+		connections:        map[string]*binancewebsocket.BinanceSocket{},
 		connectionsLock:    sync.Mutex{},
-		connectionAttempts: make(chan time.Time, 300),
+		connectionAttempts: make(chan time.Time, 300), // do not change 300
 	}
 	go BinanceConnectionManager.connectionAttemptListener()
 }
 
-func (bcm *binanceConnectionManager) NewConnection(userId uint64) (*BinanceConnection, error) {
-	bcm.connectionAttempts <- time.Now() // this will block until the channel has at least 1 space
-	conn, err := newBinanceConnection(userId)
-	if err != nil {
-		return nil, err
+func (bcm *binanceConnectionManager) Listen(symbol string, stream dto.BinanceStream, ch chan []byte) (err error) {
+	if conn := bcm.GetConnection(fmt.Sprintf("%s@%s", symbol, stream)); conn != nil {
+		conn.AddSubscriber(uuid.NewString(), ch)
+		return nil
 	}
-	bcm.addConnection(userId, conn)
-	return conn, nil
+	bcm.connectionAttempts <- time.Now() // this will block until the channel has at least 1 space
+	conn, err := binancewebsocket.NewBinanceWebsocket(true, fmt.Sprintf("%s_%s_BINANCE_WS_CLIENT", symbol, stream))
+	if err != nil {
+		return err
+	}
+	conn.AddSubscriber(uuid.NewString(), ch)
+	bcm.addConnection(fmt.Sprintf("%s@%s", symbol, stream), conn)
+	return nil
 }
 
-func (bcm *binanceConnectionManager) GetConnection(userId uint64) *BinanceConnection {
+func (bcm *binanceConnectionManager) GetConnection(stream string) *binancewebsocket.BinanceSocket {
 	bcm.connectionsLock.Lock()
 	defer bcm.connectionsLock.Unlock()
-	if conn, ok := bcm.connections[userId]; ok {
+	if conn, ok := bcm.connections[stream]; ok {
 		return conn
 	}
 	return nil
@@ -56,14 +65,14 @@ func (bcm *binanceConnectionManager) connectionAttemptListener() {
 	}
 }
 
-func (bcm *binanceConnectionManager) addConnection(userId uint64, conn *BinanceConnection) {
+func (bcm *binanceConnectionManager) addConnection(stream string, conn *binancewebsocket.BinanceSocket) {
 	bcm.connectionsLock.Lock()
 	defer bcm.connectionsLock.Unlock()
-	bcm.connections[userId] = conn
+	bcm.connections[stream] = conn
 }
 
-func (bcm *binanceConnectionManager) removeConnection(userId uint64) {
+func (bcm *binanceConnectionManager) removeConnection(stream string) {
 	bcm.connectionsLock.Lock()
 	defer bcm.connectionsLock.Unlock()
-	delete(bcm.connections, userId)
+	delete(bcm.connections, stream)
 }

@@ -55,32 +55,34 @@ func ValidateAccessToken(tokenString string) (userid *uint64, err error) {
 	}
 
 	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-		var publicId, userId string
+		var publicId string
 		var expiration int64
+		var userId uint64
 		if publicId_, ok := claims["public_id"]; ok {
 			publicId = publicId_.(string)
 		}
 		if userId_, ok := claims["user_id"]; ok {
-			userId = userId_.(string)
-		}
-		if expiration__, ok := claims["exp"]; ok {
-			if expiration_, ok := expiration__.(string); ok {
-				expiration, _ = strconv.ParseInt(expiration_, 10, 64)
+			if userId__, ok := userId_.(float64); ok {
+				userId = uint64(userId__)
+			} else {
+				return nil, customErrors.ErrInvalidAccessToken
 			}
 		}
-		if publicId == "" || userId == "" || expiration == 0 {
+		if expiration__, ok := claims["exp"]; ok {
+			if expiration_, ok := expiration__.(float64); ok {
+				expiration = int64(expiration_)
+			}
+		}
+		if publicId == "" || userId == 0 || expiration == 0 {
 			return nil, customErrors.ErrInvalidAccessToken
 		}
 		if time.Now().After(time.UnixMilli(expiration)) {
 			return nil, customErrors.ErrAccessTokenExpired
 		}
-		uintUserId, err := strconv.ParseUint(userId, 10, 64)
-		if err != nil {
-			return nil, customErrors.ErrInvalidAccessToken
-		}
-		return &uintUserId, nil
+		return &userId, nil
 
 	}
+
 	return nil, customErrors.ErrInvalidAccessToken
 }
 

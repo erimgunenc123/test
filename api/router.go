@@ -5,6 +5,7 @@ import (
 	"genericAPI/api/middlewares"
 	"genericAPI/internal/endpoints/http_endpoints/algo"
 	"genericAPI/internal/endpoints/http_endpoints/login"
+	http_marketdata "genericAPI/internal/endpoints/http_endpoints/marketdata"
 	"genericAPI/internal/endpoints/http_endpoints/register"
 	"genericAPI/internal/endpoints/websocket_endpoints/marketdata"
 	"github.com/gin-contrib/cors"
@@ -25,15 +26,19 @@ func addEndpointRouters(app *gin.Engine) {
 	// frontend will remove the stored jwt on logout and redirect to index page
 	app.POST("/login", login.LoginEndpoint)
 	app.POST("/register", register.RegisterEndpoint)
+	authGroup := app.Group("/auth")
+	authGroup.Use(middlewares.ValidateAccessTokenMiddleware())
 
-	// algo related endpoints
-	algoGroup := app.Group("/algos")
-	algoGroup.Use(middlewares.ValidateAccessTokenMiddleware())
+	// arbitrage
+	arbitrageGroup := authGroup.Group("/arbitrage")
+	arbitrageGroup.POST("/candlestick", http_marketdata.ArbitrageCandlestickDataEndpoint)
+
+	// algo
+	algoGroup := authGroup.Group("/algos")
 	algoGroup.GET("/get_running_algos", algo.GetRunningAlgosEndpoint)
 
 	// ws
-	wsGroup := app.Group("/ws")
-	wsGroup.Use(middlewares.ValidateAccessTokenMiddleware())
+	wsGroup := authGroup.Group("/ws")
 	wsGroup.Use(middlewares.WebsocketUpgradeMiddleware())
 	wsGroup.GET("/marketdata", marketdata.MarketdataWsHandler)
 }
@@ -52,5 +57,6 @@ func setCORS() gin.HandlerFunc {
 	if environment.IsTestEnvironment() {
 		corsConf.AllowAllOrigins = true
 	}
+	corsConf.AllowHeaders = append(corsConf.AllowHeaders, "Authorization")
 	return cors.New(corsConf)
 }

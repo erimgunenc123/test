@@ -11,4 +11,5 @@ var (
 	ErrNoActiveSymbols            = errors.New("no active symbols yet")
 	ErrUnsuccessfulListenRequest  = errors.New("listen request unsuccessful")
 	ErrMaximumNumberOfConnections = errors.New("maximum number of connections reached")
+	ErrFailedRequest              = errors.New("request failed")
 )

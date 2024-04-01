@@ -11,7 +11,7 @@ const (
 )
 
 type BinanceStreamParameters struct {
-	firstSymbol  BinanceSymbol
-	secondSymbol BinanceSymbol
-	parameters   map[string]any // todo
+	Symbol     string
+	Identifier uint64
+	Parameters map[string]any // todo
 }

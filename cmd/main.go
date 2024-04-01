@@ -8,8 +8,11 @@ import (
 	"genericAPI/api/environment"
 	"genericAPI/binanceconnector/connection_manager"
 	"genericAPI/internal/dbops"
+	"genericAPI/internal/services/marketdata/exchange_info"
+	"genericAPI/internal/services/marketdata/orderbook"
 	"github.com/gin-gonic/gin"
 	"log"
+	"sync"
 )
 
 func main() {
@@ -22,5 +25,15 @@ func main() {
 	api.InitRouter(app)
 	dbops.Migrate() // disabled on prod env
 	connection_manager.InitBinanceConnectionManager()
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		exchange_info.InitExchangeInfo()
+		orderbook.InitOrderbookService()
+	}()
+	wg.Wait()
+
 	log.Fatal(app.Run(":" + api_config.Config.App.Port))
 }
