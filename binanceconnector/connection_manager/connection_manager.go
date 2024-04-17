@@ -29,7 +29,7 @@ func InitBinanceConnectionManager() {
 	BinanceConnectionManager = &binanceConnectionManager{
 		connections:        map[string]*binancewebsocket.BinanceSocket{},
 		connectionsLock:    sync.Mutex{},
-		connectionAttempts: make(chan time.Time, 300), // do not change 300
+		connectionAttempts: make(chan time.Time, 299), // do not change 299
 	}
 	go BinanceConnectionManager.connectionAttemptListener()
 }

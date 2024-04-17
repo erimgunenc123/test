@@ -50,13 +50,13 @@ func (w *WebsocketClient) SendPing() {
 	}
 }
 
-func (w *WebsocketClient) ReadMessage() []byte {
+func (w *WebsocketClient) ReadMessage() ([]byte, error) {
 	_, message, err := w.conn.ReadMessage()
 	if err != nil {
 		slog.Error("Error reading message:", err)
-		return nil
+		return nil, err
 	}
-	return message
+	return message, nil
 }
 
 func (w *WebsocketClient) WriteMessage(message []byte) error {

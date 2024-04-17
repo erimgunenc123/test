@@ -50,7 +50,10 @@ func (bs *BinanceSocket) RemoveSubscriber(uuid string) {
 func (bs *BinanceSocket) listen() {
 	wg := sync.WaitGroup{}
 	for {
-		msg := bs.client.ReadMessage()
+		msg, err := bs.client.ReadMessage()
+		if err != nil {
+			continue
+		}
 		bs.subscriberLock.Lock()
 		for _, subscriber := range bs.subscribers {
 			wg.Add(1)

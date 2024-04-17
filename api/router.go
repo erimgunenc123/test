@@ -41,6 +41,7 @@ func addEndpointRouters(app *gin.Engine) {
 	wsGroup := authGroup.Group("/ws")
 	wsGroup.Use(middlewares.WebsocketUpgradeMiddleware())
 	wsGroup.GET("/marketdata", marketdata.MarketdataWsHandler)
+	wsGroup.GET("/best_bid_ask", marketdata.BestBidAskWsHandler)
 }
 
 func noRoute(c *gin.Context) {

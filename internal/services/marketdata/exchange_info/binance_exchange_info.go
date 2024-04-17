@@ -7,15 +7,15 @@ import (
 
 // todo might need locks, assuming this whole service will initialize once and never write anything again
 
-type exchangeInfoService struct {
+type binanceExchangeInfo struct {
 	symbols    map[string]http_endpoints.SymbolInfo // symbol -> symbolInfo
 	rateLimits map[string]http_endpoints.RateLimit  // rateLimitType -> rateLimit
 }
 
-var ExchangeInfoService *exchangeInfoService
+var BinanceExchangeInfo *binanceExchangeInfo
 
-func InitExchangeInfo() {
-	ExchangeInfoService = &exchangeInfoService{
+func InitBinanceExchangeInfo() {
+	BinanceExchangeInfo = &binanceExchangeInfo{
 		symbols:    make(map[string]http_endpoints.SymbolInfo),
 		rateLimits: make(map[string]http_endpoints.RateLimit),
 	}
@@ -25,14 +25,14 @@ func InitExchangeInfo() {
 		panic(fmt.Sprintf("Failed fetching exchange info with error:%s", err.Error()))
 	}
 	for _, symbol := range excInfo.Symbols {
-		ExchangeInfoService.symbols[symbol.Symbol] = symbol
+		BinanceExchangeInfo.symbols[symbol.Symbol] = symbol
 	}
 	for _, rateLimit := range excInfo.RateLimits {
-		ExchangeInfoService.rateLimits[rateLimit.RateLimitType] = rateLimit
+		BinanceExchangeInfo.rateLimits[rateLimit.RateLimitType] = rateLimit
 	}
 }
 
-func (exc *exchangeInfoService) GetSymbols() []string {
+func (exc *binanceExchangeInfo) GetSymbols() []string {
 	var res []string
 	for k, _ := range exc.symbols {
 		res = append(res, k)

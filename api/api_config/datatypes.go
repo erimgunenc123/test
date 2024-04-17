@@ -3,8 +3,14 @@ package api_config
 import "fmt"
 
 type config struct {
-	DB  dbConfig  `yaml:"db"`
-	App appConfig `yaml:"app"`
+	DB      dbConfig      `yaml:"db"`
+	App     appConfig     `yaml:"app"`
+	Btcturk btcturkConfig `yaml:"btcturk"`
+}
+
+type btcturkConfig struct {
+	PublicKey  string `yaml:"public_key"`
+	PrivateKey string `yaml:"private_key"`
 }
 
 type appConfig struct {

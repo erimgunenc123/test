@@ -15,8 +15,8 @@ func MarketdataWsHandler(c *gin.Context) {
 	}
 	conn := conn_.(*websocketclient.WebsocketClient)
 	for {
-		msg := conn.ReadMessage()
-		if msg == nil {
+		msg, err := conn.ReadMessage()
+		if err != nil {
 			continue
 		}
 		go marketdataRequestHandler(msg)

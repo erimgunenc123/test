@@ -7,6 +7,7 @@ import (
 	"genericAPI/api/database_logger"
 	"genericAPI/api/environment"
 	"genericAPI/binanceconnector/connection_manager"
+	"genericAPI/btcturk_connector/tickers"
 	"genericAPI/internal/dbops"
 	"genericAPI/internal/services/marketdata/exchange_info"
 	"genericAPI/internal/services/marketdata/orderbook"
@@ -27,11 +28,16 @@ func main() {
 	connection_manager.InitBinanceConnectionManager()
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
+	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		exchange_info.InitExchangeInfo()
+		exchange_info.InitBtcTurkExchangeInfo()
+		exchange_info.InitBinanceExchangeInfo()
 		orderbook.InitOrderbookService()
+	}()
+	go func() {
+		defer wg.Done()
+		tickers.InitTickerService()
 	}()
 	wg.Wait()
 
