@@ -1,12 +1,15 @@
 package websocket
 
 import (
+	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"genericAPI/api/api_config"
-	"genericAPI/btcturk_connector/constants"
+	"genericAPI/exchange/btcturk_connector/constants"
+	"genericAPI/exchange/btcturk_connector/dto"
 	"genericAPI/internal/websocketclient"
 	"log"
 	"time"
@@ -14,16 +17,28 @@ import (
 
 type BtcturkWsConnection struct {
 	wsClient *websocketclient.WebsocketClient
-	respChan chan []byte
+	respChan chan dto.WsResponse
 }
 
-func (b *BtcturkWsConnection) Listen() {
+func (b *BtcturkWsConnection) listen() {
 	for {
 		msg, err := b.wsClient.ReadMessage()
 		if err != nil {
 			continue
 		}
-		b.respChan <- msg
+		var data dto.WsResponse
+		if bytes.Equal(msg[1:3], orderBookFull) {
+			data = data.(dto.OrderBookFullResponse)
+		} else if bytes.Equal(msg[1:3], subscriptionResponse) {
+			data = data.(dto.WsSubscriptionResponse)
+		}
+
+		err = json.Unmarshal(msg[3:len(msg)-1], &data)
+		if err != nil {
+			log.Printf("Error while unmarshalling btcturk ws response:%s", err.Error())
+			continue
+		}
+		b.respChan <- data
 	}
 }
 
@@ -44,19 +59,31 @@ func (b *BtcturkWsConnection) Authenticate() {
 	message := []byte(request)
 	err = b.wsClient.WriteMessage(message)
 	if err != nil {
-		log.Println("ERROR:", err)
+		log.Printf("error writing authentication message on btcturk ws:%s", err.Error())
 		return
 	}
 }
 
-func NewBtcturkWsConnection(respChan chan []byte) (*BtcturkWsConnection, error) {
+func (b *BtcturkWsConnection) SubscribeToOrderbookStream(pairSymbol string) {
+	msg, _ := json.Marshal(dto.WsSubscriptionMessage{
+		Type:    constants.Subscription,
+		Channel: constants.Orderbook,
+		Event:   pairSymbol,
+		Join:    true,
+	})
+	b.wsClient.WriteMessage(msg)
+}
+
+func NewBtcturkWsConnection(respChan chan dto.WsResponse) (*BtcturkWsConnection, error) {
 	client := websocketclient.NewWebsocketClient("BTCTURK_WS_CLIENT", constants.BaseWsUrl)
 	err := client.Connect()
 	if err != nil {
 		return nil, err
 	}
-	return &BtcturkWsConnection{
+	wsConn := BtcturkWsConnection{
 		wsClient: client,
 		respChan: respChan,
-	}, nil
+	}
+	go wsConn.listen()
+	return &wsConn, nil
 }

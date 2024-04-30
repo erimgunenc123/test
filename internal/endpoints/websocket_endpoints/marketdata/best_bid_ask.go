@@ -2,7 +2,7 @@ package marketdata
 
 import (
 	"encoding/json"
-	"genericAPI/btcturk_connector/tickers"
+	tickers2 "genericAPI/exchange/btcturk_connector/tickers"
 	"genericAPI/internal/common/constants"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -34,8 +34,8 @@ func bestBidAskHandler(c *websocket.Conn, msg []byte) {
 }
 
 func provideTickerFeed(c *websocket.Conn, symbol string) {
-	readChan := make(chan *tickers.Tick, 100)
-	err := tickers.NewTicker(symbol, readChan)
+	readChan := make(chan *tickers2.Tick, 100)
+	err := tickers2.NewTicker(symbol, readChan)
 	if err != nil {
 		log.Printf("Error while initializing ticker: %s", err.Error())
 		return
@@ -43,7 +43,7 @@ func provideTickerFeed(c *websocket.Conn, symbol string) {
 	go listenTicker(c, readChan)
 }
 
-func listenTicker(c *websocket.Conn, readChan chan *tickers.Tick) {
+func listenTicker(c *websocket.Conn, readChan chan *tickers2.Tick) {
 	for {
 		tick := <-readChan
 		msgBytes, _ := json.Marshal(tick)

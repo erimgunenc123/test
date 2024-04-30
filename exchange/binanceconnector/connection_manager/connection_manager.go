@@ -2,8 +2,8 @@ package connection_manager
 
 import (
 	"fmt"
-	"genericAPI/binanceconnector/dto"
-	"genericAPI/binanceconnector/websocket/binancewebsocket"
+	"genericAPI/exchange/binanceconnector/dto"
+	"genericAPI/exchange/binanceconnector/websocket/binancewebsocket"
 	"github.com/google/uuid"
 	"sync"
 	"time"

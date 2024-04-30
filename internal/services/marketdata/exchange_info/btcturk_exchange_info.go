@@ -2,23 +2,23 @@ package exchange_info
 
 import (
 	"fmt"
-	btcturk "genericAPI/btcturk_connector/http_endpoints"
+	"genericAPI/exchange/btcturk_connector/http_endpoints"
 )
 
 // todo might need locks, assuming this whole service will initialize once and never write anything again
 
 type btcTurkExchangeInfo struct {
-	symbols map[string]btcturk.Symbol // symbol -> symbolInfo
+	symbols map[string]http_endpoints.Symbol // symbol -> symbolInfo
 }
 
 var BtcTurkExchangeInfo *btcTurkExchangeInfo
 
 func InitBtcTurkExchangeInfo() {
 	BtcTurkExchangeInfo = &btcTurkExchangeInfo{
-		symbols: make(map[string]btcturk.Symbol),
+		symbols: make(map[string]http_endpoints.Symbol),
 	}
 
-	excInfo, err := btcturk.GetExchangeInfo()
+	excInfo, err := http_endpoints.GetExchangeInfo()
 	if err != nil {
 		panic(fmt.Sprintf("Failed fetching exchange info with error:%s", err.Error()))
 	}

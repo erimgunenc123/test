@@ -1,7 +1,7 @@
 package orderbook
 
 import (
-	binance_orderbook "genericAPI/binanceconnector/orderbook"
+	binance_orderbook "genericAPI/exchange/binanceconnector/orderbook"
 	"genericAPI/internal/services/marketdata/exchange_info"
 	"log"
 	"sync"

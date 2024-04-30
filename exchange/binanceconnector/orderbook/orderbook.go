@@ -3,9 +3,10 @@ package orderbook
 import (
 	"encoding/json"
 	"errors"
-	"genericAPI/binanceconnector/connection_manager"
-	"genericAPI/binanceconnector/dto"
-	"genericAPI/binanceconnector/http_endpoints"
+	"genericAPI/exchange/binanceconnector/connection_manager"
+	dto2 "genericAPI/exchange/binanceconnector/dto"
+	http_endpoints2 "genericAPI/exchange/binanceconnector/http_endpoints"
+	"genericAPI/exchange/common"
 	"log"
 	"strconv"
 	"sync"
@@ -13,8 +14,8 @@ import (
 
 type Orderbook struct {
 	symbol           string // e.g. BTCUSDT
-	bids             *BidPriceLevelList
-	asks             *AskPriceLevelList
+	bids             *PriceLevelList
+	asks             *PriceLevelList
 	dataStream       chan []byte
 	snapshotID       uint64
 	snapshotDataLock sync.Mutex
@@ -23,8 +24,8 @@ type Orderbook struct {
 func NewOrderbook(symbol string, fill bool) (ob *Orderbook, err error) {
 	ob = &Orderbook{
 		symbol:     symbol,
-		bids:       &BidPriceLevelList{},
-		asks:       &AskPriceLevelList{},
+		bids:       &PriceLevelList{side: common.Bid},
+		asks:       &PriceLevelList{side: common.Ask},
 		snapshotID: 99999999999999999, // need to change this in 100 years
 	}
 	if fill {
@@ -37,17 +38,17 @@ func NewOrderbook(symbol string, fill bool) (ob *Orderbook, err error) {
 }
 
 func (ob *Orderbook) GetSnapshot() map[string]any {
-	var bids []dto.Order
-	var asks []dto.Order
+	var bids []common.Order
+	var asks []common.Order
 	wg := sync.WaitGroup{}
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		bids = ob.bids.GetAllBids()
+		bids = ob.bids.GetAll()
 	}()
 	go func() {
 		defer wg.Done()
-		asks = ob.asks.GetAllAsks()
+		asks = ob.asks.GetAll()
 	}()
 	wg.Wait()
 	return map[string]any{"bids": bids, "asks": asks}
@@ -56,7 +57,7 @@ func (ob *Orderbook) GetSnapshot() map[string]any {
 func (ob *Orderbook) initOrderbook(restart bool) error {
 	if !restart {
 		ob.dataStream = make(chan []byte, 10000)
-		err := connection_manager.BinanceConnectionManager.Listen(ob.symbol, dto.DepthStream, ob.dataStream)
+		err := connection_manager.BinanceConnectionManager.Listen(ob.symbol, dto2.DepthStream, ob.dataStream)
 		if err != nil {
 			return err
 		}
@@ -64,7 +65,7 @@ func (ob *Orderbook) initOrderbook(restart bool) error {
 	go ob.listen(true)
 	ob.snapshotDataLock.Lock()
 	defer ob.snapshotDataLock.Unlock()
-	snapshot, err := http_endpoints.GetOrderbookSnapshot(ob.symbol)
+	snapshot, err := http_endpoints2.GetOrderbookSnapshot(ob.symbol)
 	if err != nil {
 		return err
 	}
@@ -87,7 +88,7 @@ func (ob *Orderbook) listen(initial bool) {
 		for {
 			ob.snapshotDataLock.Lock()
 			msg := <-ob.dataStream
-			var depthStreamResp dto.DepthStreamWsResponse
+			var depthStreamResp dto2.DepthStreamWsResponse
 			err := json.Unmarshal(msg, &depthStreamResp)
 			if err != nil {
 				log.Printf("Failed unmarshalling depth stream response: %s", msg)
@@ -111,7 +112,7 @@ func (ob *Orderbook) listen(initial bool) {
 		msgProcessor := ob.processSingleMessage()
 		for {
 			msg := <-ob.dataStream
-			var depthStreamResp dto.DepthStreamWsResponse
+			var depthStreamResp dto2.DepthStreamWsResponse
 			err := json.Unmarshal(msg, &depthStreamResp)
 			if err != nil {
 				log.Printf("Failed unmarshalling depth stream response: %s", msg)
@@ -125,10 +126,10 @@ func (ob *Orderbook) listen(initial bool) {
 	}
 }
 
-func (ob *Orderbook) processSingleMessage() func(msg *dto.DepthStreamWsResponse) error {
+func (ob *Orderbook) processSingleMessage() func(msg *dto2.DepthStreamWsResponse) error {
 	var lastUpdateID uint64
 	wg := sync.WaitGroup{}
-	return func(msg *dto.DepthStreamWsResponse) error {
+	return func(msg *dto2.DepthStreamWsResponse) error {
 		if lastUpdateID != 0 && msg.Data.Pu != lastUpdateID {
 			lastUpdateID = 0
 			return errors.New("broken orderbook")
@@ -163,7 +164,7 @@ func (ob *Orderbook) processAsk(asks [][]string) {
 	}
 }
 
-func (ob *Orderbook) processSnapshot(snapshot *http_endpoints.OrderbookSnapshot) {
+func (ob *Orderbook) processSnapshot(snapshot *http_endpoints2.OrderbookSnapshot) {
 	wg := sync.WaitGroup{}
 	wg.Add(2)
 	go func() {

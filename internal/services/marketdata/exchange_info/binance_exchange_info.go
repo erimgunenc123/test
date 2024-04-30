@@ -2,25 +2,25 @@ package exchange_info
 
 import (
 	"fmt"
-	"genericAPI/binanceconnector/http_endpoints"
+	http_endpoints2 "genericAPI/exchange/binanceconnector/http_endpoints"
 )
 
 // todo might need locks, assuming this whole service will initialize once and never write anything again
 
 type binanceExchangeInfo struct {
-	symbols    map[string]http_endpoints.SymbolInfo // symbol -> symbolInfo
-	rateLimits map[string]http_endpoints.RateLimit  // rateLimitType -> rateLimit
+	symbols    map[string]http_endpoints2.SymbolInfo // symbol -> symbolInfo
+	rateLimits map[string]http_endpoints2.RateLimit  // rateLimitType -> rateLimit
 }
 
 var BinanceExchangeInfo *binanceExchangeInfo
 
 func InitBinanceExchangeInfo() {
 	BinanceExchangeInfo = &binanceExchangeInfo{
-		symbols:    make(map[string]http_endpoints.SymbolInfo),
-		rateLimits: make(map[string]http_endpoints.RateLimit),
+		symbols:    make(map[string]http_endpoints2.SymbolInfo),
+		rateLimits: make(map[string]http_endpoints2.RateLimit),
 	}
 
-	excInfo, err := http_endpoints.GetExchangeInfo()
+	excInfo, err := http_endpoints2.GetExchangeInfo()
 	if err != nil {
 		panic(fmt.Sprintf("Failed fetching exchange info with error:%s", err.Error()))
 	}

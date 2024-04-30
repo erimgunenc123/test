@@ -2,7 +2,7 @@ package tickers
 
 import (
 	"encoding/json"
-	btcturk_constants "genericAPI/btcturk_connector/constants"
+	btcturk_constants "genericAPI/exchange/btcturk_connector/constants"
 	"genericAPI/internal/common/http_utils"
 	"io"
 	"log"
