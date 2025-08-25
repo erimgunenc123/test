@@ -1,6 +1,7 @@
 package orderbook
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,17 +21,17 @@ type Orderbook struct {
 	symbol           string // e.g. BTCUSDT
 	orderbook        *HeapOrderbook
 	dataStream       chan []byte
-	snapshotID       uint64
+	sequenceId       uint64
 	snapshotDataLock sync.Mutex
-	dbSinkChan       chan sink_service.TableData
+	dbSink           *sink_service.QuestSinkService
 }
 
 func NewOrderbook(symbol string, fill bool, dbSink *sink_service.QuestSinkService) (ob *Orderbook, err error) {
 	ob = &Orderbook{
 		symbol:     symbol,
 		orderbook:  NewHeapOrderbook(symbol),
-		snapshotID: 99999999999999999, // need to change this in 100 years
-		dbSinkChan: dbSink.GetDataChan(),
+		sequenceId: 99999999999999999, // need to change this in 100 years
+		dbSink:     dbSink,
 	}
 	if fill {
 		err = ob.initOrderbook(false)
@@ -50,15 +51,29 @@ func (ob *Orderbook) initOrderbook(restart bool) error {
 		}
 	}
 	go ob.listen(true)
+	time.Sleep(1 * time.Second) // shit solution but works
 	ob.snapshotDataLock.Lock()
 	defer ob.snapshotDataLock.Unlock()
 	snapshot, err := http_endpoints.GetOrderbookSnapshot(ob.symbol)
 	if err != nil {
 		return err
 	}
-	ob.snapshotID = snapshot.LastUpdateId
+	err = ob.dbSink.InsertSingleRow(context.Background(),
+		&models.OrderbookSnapshots{
+			At:           time.Now(),
+			Symbol:       ob.symbol,
+			Bids:         snapshot.Bids,
+			Asks:         snapshot.Asks,
+			LastUpdateId: int64(snapshot.LastUpdateId),
+		},
+		"orderbook_snapshots",
+	)
+	if err != nil {
+		slog.Info("Failed to insert snapshot", slog.AnyValue(err))
+	}
+	ob.sequenceId = snapshot.LastUpdateId
 	ob.processSnapshot(snapshot)
-	slog.Info("Snapshot initialized.")
+	slog.Info(fmt.Sprintf("Snapshot initialized. Sequence id: %d", snapshot.LastUpdateId))
 	return nil
 }
 
@@ -71,6 +86,7 @@ func (ob *Orderbook) listen(initial bool) {
 		}
 
 	}()
+	slog.Info(fmt.Sprintf("Started listening with initial: %v", initial))
 	wg := sync.WaitGroup{}
 	if initial {
 		for {
@@ -81,7 +97,14 @@ func (ob *Orderbook) listen(initial bool) {
 			if err != nil {
 				log.Printf("Failed unmarshalling depth stream response: %s", msg)
 			}
-			if depthStreamResp.FirstUpdateID <= ob.snapshotID && depthStreamResp.FinalUpdateID >= ob.snapshotID {
+			if depthStreamResp.FinalUpdateID < ob.sequenceId {
+				slog.Info(fmt.Sprintf("Snapshot not yet initialized. Discarding depth event with sequence id: %d", depthStreamResp.FinalUpdateID))
+				ob.snapshotDataLock.Unlock()
+				continue
+			} else if depthStreamResp.FirstUpdateID <= ob.sequenceId && depthStreamResp.FinalUpdateID > ob.sequenceId {
+				slog.Info("Received first message after snapshot initialization.")
+				ob.sendOrderbookDeltasToSink(&depthStreamResp)
+				ob.sequenceId = depthStreamResp.FinalUpdateID
 				wg.Add(2)
 				go func() {
 					defer wg.Done()
@@ -92,12 +115,13 @@ func (ob *Orderbook) listen(initial bool) {
 					ob.processBid(depthStreamResp.Bids)
 				}()
 				wg.Wait()
-				ob.sendOrderbookToSink()
+				ob.snapshotDataLock.Unlock()
+				slog.Info(fmt.Sprintf("Parsed message with Sequence id: %d", depthStreamResp.FirstUpdateID))
+				return // process first message and call itself again without "initial = true"
 			} else {
-				slog.Info("Snapshot not yet initialized. Discarding depth event...")
+				panic(fmt.Sprintf("Invalid state. Last snapshot update id: %d, Received first update id: %d last update id: %d",
+					ob.sequenceId, depthStreamResp.FirstUpdateID, depthStreamResp.FinalUpdateID))
 			}
-			ob.snapshotDataLock.Unlock()
-			return // process first message and call itself again without "initial = true"
 		}
 	} else {
 		msgProcessor := ob.processSingleMessage()
@@ -113,32 +137,34 @@ func (ob *Orderbook) listen(initial bool) {
 				log.Printf("%s orderbook order is broken. Restarting...", ob.symbol)
 				return
 			}
-			ob.sendOrderbookToSink()
+			ob.sendOrderbookDeltasToSink(&depthStreamResp)
 
 		}
 	}
 }
 
-func (ob *Orderbook) sendOrderbookToSink() {
-	if ob.dbSinkChan != nil {
-		bids, asks := ob.orderbook.GetAllAsList()
-		slog.Info("Sent bids and asks to questdb!")
-		ob.dbSinkChan <- &models.Orderbook{
-			At:     time.Now(),
-			Symbol: ob.symbol,
-			Bids:   bids,
-			Asks:   asks,
+func (ob *Orderbook) sendOrderbookDeltasToSink(deltas *binance_dtypes.DepthStreamWsResponse) {
+	if ob.dbSink != nil {
+		ob.dbSink.GetDataChan() <- &models.OrderbookDelta{
+			At:            time.UnixMilli(deltas.EventTime),
+			Symbol:        ob.symbol,
+			Bids:          deltas.Bids,
+			Asks:          deltas.Asks,
+			EventType:     deltas.EventType,
+			FirstUpdateId: int64(deltas.FirstUpdateID),
+			FinalUpdateId: int64(deltas.FinalUpdateID),
 		}
 	}
 }
+
 func (ob *Orderbook) processSingleMessage() func(msg *binance_dtypes.DepthStreamWsResponse) error {
-	var lastUpdateID uint64
 	wg := sync.WaitGroup{}
 	return func(msg *binance_dtypes.DepthStreamWsResponse) error {
-		if lastUpdateID != 0 && msg.Pu != lastUpdateID {
-			lastUpdateID = 0
+		if msg.FirstUpdateID != ob.sequenceId+1 {
+			ob.sequenceId = 0
 			return errors.New("broken orderbook")
 		}
+		ob.sequenceId = msg.FinalUpdateID
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
@@ -157,7 +183,7 @@ func (ob *Orderbook) processBid(bids [][]string) {
 	for _, bid := range bids {
 		price, _ := strconv.ParseFloat(bid[0], 64)
 		qty, _ := strconv.ParseFloat(bid[1], 64)
-		ob.orderbook.Update(true, price, qty)
+		ob.orderbook.Insert(true, price, qty)
 	}
 }
 
@@ -165,7 +191,7 @@ func (ob *Orderbook) processAsk(asks [][]string) {
 	for _, ask := range asks {
 		price, _ := strconv.ParseFloat(ask[0], 64)
 		qty, _ := strconv.ParseFloat(ask[1], 64)
-		ob.orderbook.Update(false, price, qty)
+		ob.orderbook.Insert(false, price, qty)
 	}
 }
 

@@ -47,7 +47,7 @@ func main() {
 			return
 		}
 
-		sinkService := sink_service.NewQuestSinkService(questClient, "historical_orderbook", 2)
+		sinkService := sink_service.NewQuestSinkService(questClient, "orderbook_deltas", 5)
 
 		go sinkService.Start(ctx)
 		orderbook.InitOrderbookService(sinkService)

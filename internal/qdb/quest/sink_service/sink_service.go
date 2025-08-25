@@ -45,7 +45,6 @@ func (q *QuestSinkService) Start(ctx context.Context) error {
 
 		case <-ticker.C:
 			if currentBatchCount > 0 {
-				slog.Info("Flushing (by ticker)")
 				if err := q.client.Sender.Flush(ctx); err != nil {
 					slog.ErrorContext(ctx, "failed flushing on timer",
 						slog.Any("error", err),
@@ -55,7 +54,6 @@ func (q *QuestSinkService) Start(ctx context.Context) error {
 			}
 
 		case data := <-q.sink:
-			slog.Info("QDB: Received bids and asks")
 			if err := data.Insert(ctx, q.client.Sender, q.tableName); err != nil {
 				slog.ErrorContext(ctx, "failed inserting data",
 					slog.Any("error", err),
@@ -64,17 +62,25 @@ func (q *QuestSinkService) Start(ctx context.Context) error {
 
 			currentBatchCount++
 			if currentBatchCount >= q.batchSize {
-				slog.Info("Flushing")
 				if err := q.client.Sender.Flush(ctx); err != nil {
 					slog.ErrorContext(ctx, "failed flushing batch",
 						slog.Any("error", err),
 						slog.String("table", q.tableName))
 				}
 				currentBatchCount = 0
-				slog.Info("Flushed")
 			}
 		}
 	}
+}
+
+func (q *QuestSinkService) InsertSingleRow(ctx context.Context, data TableData, tableName string) error {
+	if err := data.Insert(ctx, q.client.Sender, tableName); err != nil {
+		slog.ErrorContext(ctx, "failed inserting data",
+			slog.Any("error", err),
+			slog.String("table", q.tableName))
+		return err
+	}
+	return nil
 }
 
 func (q *QuestSinkService) GetDataChan() chan TableData {
