@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"genericAPI/api/environment"
 	"genericAPI/api/os_specific_constants"
-	"gopkg.in/yaml.v3"
 	"log"
 	"os"
+
+	"gopkg.in/yaml.v3"
 )
 
 var Config *config
@@ -19,7 +20,7 @@ func InitConfig() {
 	} else {
 		configFileName = "prod.yml"
 	}
-	configFilePath := fmt.Sprintf("%s%sgenericAPI%sconfig%s%s", wd, os_specific_constants.PATH_SEPERATOR, os_specific_constants.PATH_SEPERATOR, os_specific_constants.PATH_SEPERATOR, configFileName)
+	configFilePath := fmt.Sprintf("%s%sconfig%s%s", wd, os_specific_constants.PATH_SEPERATOR, os_specific_constants.PATH_SEPERATOR, configFileName)
 	configBytes, err := os.ReadFile(configFilePath)
 	if err != nil {
 		panic("Failed reading config file!")

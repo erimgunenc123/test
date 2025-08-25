@@ -1,30 +1,32 @@
 package main
 
 import (
+	"context"
 	"genericAPI/api"
 	"genericAPI/api/api_config"
-	"genericAPI/api/database_connection"
-	"genericAPI/api/database_logger"
 	"genericAPI/api/environment"
 	"genericAPI/exchange/binanceconnector/connection_manager"
 	"genericAPI/exchange/btcturk_connector/tickers"
-	"genericAPI/internal/dbops"
+	"genericAPI/internal/qdb/quest/client"
+	"genericAPI/internal/qdb/quest/sink_service"
 	"genericAPI/internal/services/marketdata/exchange_info"
 	"genericAPI/internal/services/marketdata/orderbook"
-	"github.com/gin-gonic/gin"
-	"log"
+	"log/slog"
+	_ "net/http/pprof"
 	"sync"
+
+	"github.com/gin-gonic/gin"
 )
 
 func main() {
 	environment.ParseArgs()
 	api_config.InitConfig()
-
-	database_connection.InitDB(database_logger.InitDbLogger())
+	ctx := context.Background()
+	//database_connection.InitDB(database_logger.InitDbLogger())
 	app := gin.Default()
 	api.ConfigureGin(app)
 	api.InitRouter(app)
-	dbops.Migrate() // disabled on prod env
+	//dbops.Migrate() // disabled on prod env
 	connection_manager.InitBinanceConnectionManager()
 
 	wg := sync.WaitGroup{}
@@ -33,7 +35,22 @@ func main() {
 		defer wg.Done()
 		exchange_info.InitBtcTurkExchangeInfo()
 		exchange_info.InitBinanceExchangeInfo()
-		orderbook.InitOrderbookService()
+		questConfig := client.QuestConfig{
+			Host:     "localhost",
+			Port:     9000,
+			Username: "admin",
+			Password: "quest",
+		}
+		questClient := client.NewQuestClient(ctx, questConfig)
+		if questClient == nil {
+			slog.Error("failed to create QuestDB client")
+			return
+		}
+
+		sinkService := sink_service.NewQuestSinkService(questClient, "historical_orderbook", 2)
+
+		go sinkService.Start(ctx)
+		orderbook.InitOrderbookService(sinkService)
 	}()
 	go func() {
 		defer wg.Done()
@@ -41,5 +58,5 @@ func main() {
 	}()
 	wg.Wait()
 
-	log.Fatal(app.Run(":" + api_config.Config.App.Port))
+	panic(app.Run(":" + api_config.Config.App.Port))
 }

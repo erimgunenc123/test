@@ -8,6 +8,6 @@ const (
 )
 
 type Order struct { // todo might need side?
-	Quantity   uint64  `json:"qty"`
+	Quantity   float64 `json:"qty"`
 	PriceLevel float64 `json:"price"`
 }

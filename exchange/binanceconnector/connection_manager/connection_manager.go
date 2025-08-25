@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"genericAPI/exchange/binanceconnector/dto"
 	"genericAPI/exchange/binanceconnector/websocket/binancewebsocket"
-	"github.com/google/uuid"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // WebSocket connections have a limit of 5 incoming messages per second. A message is considered:
@@ -40,7 +41,7 @@ func (bcm *binanceConnectionManager) Listen(symbol string, stream dto.BinanceStr
 		return nil
 	}
 	bcm.connectionAttempts <- time.Now() // this will block until the channel has at least 1 space
-	conn, err := binancewebsocket.NewBinanceWebsocket(true, fmt.Sprintf("%s_%s_BINANCE_WS_CLIENT", symbol, stream))
+	conn, err := binancewebsocket.NewBinanceWebsocket(true, symbol, string(stream))
 	if err != nil {
 		return err
 	}

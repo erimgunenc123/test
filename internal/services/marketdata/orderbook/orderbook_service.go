@@ -2,6 +2,7 @@ package orderbook
 
 import (
 	binance_orderbook "genericAPI/exchange/binanceconnector/orderbook"
+	"genericAPI/internal/qdb/quest/sink_service"
 	"genericAPI/internal/services/marketdata/exchange_info"
 	"log"
 	"sync"
@@ -15,24 +16,25 @@ type orderbookService struct {
 
 var OrderbookService *orderbookService
 
-func InitOrderbookService() {
+func InitOrderbookService(dbSink *sink_service.QuestSinkService) {
 	binanceSymbols := exchange_info.BinanceExchangeInfo.GetSymbols()
-	btcTurkSymbols := exchange_info.BtcTurkExchangeInfo.GetSymbols()
+	//btcTurkSymbols := exchange_info.BtcTurkExchangeInfo.GetSymbols()
 
 	OrderbookService = &orderbookService{
 		liveOrderbooks: make(map[string]*SymbolOrderbook),
 	}
 	wg := sync.WaitGroup{}
+	binanceSymbols = []string{"BTCUSDT"} // for now
 	for _, symbol := range binanceSymbols {
 		wg.Add(1)
 		go func(s string) {
 			defer wg.Done()
-			if !contains(s, btcTurkSymbols) {
-				return
-			}
+			//if !contains(s, btcTurkSymbols) {
+			//	return
+			//}
 			obChan := make(chan *binance_orderbook.Orderbook)
 			go func() {
-				ob, err := binance_orderbook.NewOrderbook(s, true)
+				ob, err := binance_orderbook.NewOrderbook(s, true, dbSink)
 				if err != nil {
 					log.Printf("Failed initializing orderbook for symbol: %s", s)
 					return
